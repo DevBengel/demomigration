@@ -3,6 +3,7 @@ import json
 import re
 from pathlib import Path
 from rna_mapping import assess
+from hunt_semantics import assess as assess_hunt
 
 ALGORITHMS = {'Longest Idle Time': 'UNIFORM', 'Top Down': 'REGULAR',
               'Circular': 'CIRCULAR', 'Broadcast': 'SIMULTANEOUS'}
@@ -39,6 +40,7 @@ def prepare(chains, location_report, member_report, plans, existing, numbers, ca
                 reasons.append('CUCM_FORWARDING_NOT_MAPPED')
             options = group.get('huntOptions') or {}
             timing = assess(options.get('rnaReversionTimeOut'), calibration)
+            semantics = assess_hunt(options, len(chain['huntGroups']), chain.get('originalForwardSettings'))
             if timing['status'] != 'NOT_CONFIGURED':
                 reasons.append('CUCM_RNA_WEBEX_MAPPING_NOT_API_VALIDATED')
             for key in ('huntAlgorithmNoAnswer','huntAlgorithmBusy','huntAlgorithmNotAvailable'):
@@ -59,7 +61,7 @@ def prepare(chains, location_report, member_report, plans, existing, numbers, ca
                        'agents':[{'id':m['id']} for m in candidates]} if policy and candidates else None
             result.append({'sourceKey':chain['sourceKey'],'name':group['name'],'locationId':lid,
                            'status':'BLOCKED' if reasons else 'READY', 'reasons':sorted(set(reasons)),
-                           'payload':payload,'rnaTiming':timing})
+                           'payload':payload,'rnaTiming':timing,'huntSemantics':semantics})
     return {'schemaVersion':1,'mode':'CREATE_DISABLED_ONLY','objects':result}
 
 def apply_one(client, plan, confirmation, output):
