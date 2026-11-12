@@ -8,9 +8,10 @@ class ProvisionTests(unittest.TestCase):
         members={'reports':[{'sourceKey':'["1234",""]','huntGroup':'HG-1234-01','status':'RESOLVED','members':[{'status':'RESOLVED','candidates':[{'id':'P1','type':'PEOPLE'}]}]}]}
         plans=[{'source':{'huntPilot':'1234','partition':'','rawHuntPilot':{}}}]
         return chains,locations,members,plans
-    def test_ready_disabled(self):
+    def test_missing_hunt_semantics_blocks(self):
         x=prepare(*self.fixtures(),{'LOC':[]},[] )['objects'][0]
-        self.assertEqual(x['status'],'READY')
+        self.assertEqual(x['status'],'BLOCKED')
+        self.assertIn('CUCM_HUNT_SEMANTICS_BLOCKED',x['reasons'])
         self.assertFalse(x['payload']['enabled'])
         self.assertEqual(x['payload']['callPolicies']['policy'],'UNIFORM')
     def test_queue_blocks(self):

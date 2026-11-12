@@ -51,7 +51,7 @@ def _algorithm(settings):
 
 def _hunt_options(settings):
     return {k: v for k, v in settings.items() if any(term in k.lower().replace(' ', '') for term in (
-        'huntoption', 'noanswer', 'busy', 'notavailable', 'rna', 'timeout', 'distribution', 'algorithm', 'logouthunt'))}
+        'huntoption', 'noanswer', 'busy', 'notavailable', 'rna', 'timeout', 'distribution', 'algorithm', 'logouthunt', 'logoffhunt'))}
 
 
 def _order(stages):

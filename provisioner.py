@@ -41,10 +41,11 @@ def prepare(chains, location_report, member_report, plans, existing, numbers, ca
             options = group.get('huntOptions') or {}
             timing = assess(options.get('rnaReversionTimeOut'), calibration)
             semantics = assess_hunt(options, len(chain['huntGroups']), chain.get('originalForwardSettings'))
+            if semantics['status'] != 'REVIEW_REQUIRED': reasons.append('CUCM_HUNT_SEMANTICS_BLOCKED')
             if timing['status'] != 'NOT_CONFIGURED':
                 reasons.append('CUCM_RNA_WEBEX_MAPPING_NOT_API_VALIDATED')
-            for key in ('huntAlgorithmNoAnswer','huntAlgorithmBusy','huntAlgorithmNotAvailable'):
-                if options.get(key): reasons.append('CUCM_HUNT_OPTION_REQUIRES_SEMANTIC_REVIEW')
+            if any(c['status'] == 'REVIEW' for c in semantics['checks']):
+                reasons.append('CUCM_HUNT_OPTION_REQUIRES_SEMANTIC_REVIEW')
             policy = ALGORITHMS.get(group.get('distributionAlgorithm'))
             if not policy: reasons.append('UNSUPPORTED_DISTRIBUTION_ALGORITHM')
             ext = str(group.get('extension') or '')

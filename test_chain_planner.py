@@ -37,3 +37,12 @@ class ChainPlannerTests(unittest.TestCase):
         self.assertEqual(build_chains([p])[0]['status'],'BLOCKED')
 
 if __name__=='__main__':unittest.main()
+
+
+class HuntOptionPreservationTests(unittest.TestCase):
+    def test_explicit_false_survives_filter(self):
+        from chain_planner import _hunt_options
+        from migrate import extract_settings
+        raw={'autoLogOffHunt':False, 'huntAlgorithmBusy':'Try next member; then, try next group in Hunt List'}
+        self.assertIn('autoLogOffHunt', extract_settings(raw))
+        self.assertIs(_hunt_options(extract_settings(raw))['autoLogOffHunt'], False)

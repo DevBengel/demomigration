@@ -173,7 +173,7 @@ def read_axl(prefixes=(), excludes=()):
 def extract_settings(settings):
     # Keep the full source as well; flatten only for review, not as authoritative API mapping.
     if not isinstance(settings,dict):return {}
-    return {str(k):v for k,v in settings.items() if any(t in k.lower().replace(' ','') for t in ('forward','hunt','queue','overflow','rna','busy','down','distribution','algorithm','timer','timeout','maxwait','maxnumber','logout','enabled','routepartition','css','presentation','mask','moh','announcement','selection'))}
+    return {str(k):v for k,v in settings.items() if any(t in k.lower().replace(' ','') for t in ('forward','hunt','queue','overflow','rna','busy','down','distribution','algorithm','timer','timeout','maxwait','maxnumber','logout','logoff','enabled','routepartition','css','presentation','mask','moh','announcement','selection'))}
 
 def migrate(graph):
     plans=[]
