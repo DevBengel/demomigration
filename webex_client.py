@@ -79,13 +79,13 @@ class WebexClient:
     def calling_people(self, location_id=None, org_id=None):
         # Webex directory enumeration; callingData includes calling-specific fields.
         params = {'callingData': 'true', 'max': 100}
-        if org_id: params['orgId'] = org_id
+        # Directory endpoints use the token's organization. Do not forward a
+        # configured location ID or UUID as orgId (Webex expects an encoded ID).
         return self.list('/people', params=params, key='items')
 
     def calling_workspaces(self, location_id=None, org_id=None):
-        params = {'max': 100}
-        if org_id: params['orgId'] = org_id
-        return self.list('/workspaces', params=params, key='items')
+        # Workspaces collection: omit unsupported/tenant-specific filters.
+        return self.list('/workspaces', key='items')
 
     def calling_person_details(self, person_id):
         from urllib.parse import quote

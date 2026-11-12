@@ -34,3 +34,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(r['reports'][0]['members'][0]['status'],'INVENTORY_INCOMPLETE')
 
 if __name__=='__main__': unittest.main()
+
+class DirectoryRequestTests(unittest.TestCase):
+    def test_directory_requests_do_not_send_org_id(self):
+        from webex_client import WebexClient
+        class Stub(WebexClient):
+            def __init__(self): pass
+            def list(self, path, params=None, key=None):
+                self.calls.append((path, params, key)); return []
+        c=Stub();c.calls=[]
+        c.calling_people(location_id='loc',org_id='bad-uuid')
+        c.calling_workspaces(location_id='loc',org_id='bad-uuid')
+        self.assertEqual(c.calls[0],('/people',{'callingData':'true','max':100},'items'))
+        self.assertEqual(c.calls[1],('/workspaces',None,'items'))
