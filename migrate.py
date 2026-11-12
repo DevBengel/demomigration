@@ -6,6 +6,7 @@ from pathlib import Path
 from chain_planner import build_chains
 from webex_client import WebexClient, WebexError, acquire_token, preflight
 from member_resolver import resolve_members
+from provisioner import prepare, apply_one
 from location_mapper import resolve_locations, load_mapping, MappingError
 
 
@@ -214,15 +215,16 @@ def main():
     p.add_argument('--exclude-prefix',default=None,help='Comma-separated excluded DN prefixes')
     p.add_argument('--list-only',action='store_true',help='Print matching Hunt Pilots; do not write plans or allocations')
     p.add_argument('--resolve-members', action='store_true', help='Resolve Calling people/workspaces by extension; requires --webex-check')
-    p.add_argument('--apply', action='store_true', help='Reserved for validated provisioning; fail closed in v0.7.1')
+    p.add_argument('--apply', action='store_true', help='Create ONE validated Hunt Group, disabled, with explicit confirmation')
+    p.add_argument('--confirm-create', default='', help='Exact Hunt Group name to authorize creation')
     p.add_argument('--webex-check', action='store_true', help='Connect to Webex, inspect location and target inventory (read-only)')
     p.add_argument('--location-mode', choices=['fixed','prefix','auto'], default=None, help='Override WEBEX_LOCATION_MODE')
     p.add_argument('--location-mapping', type=Path, default=None, help='JSON prefix -> Webex location ID')
     p.add_argument('--export-location-mapping', type=Path, help='Fetch Webex locations and generate editable JSON with names, IDs and prefix placeholders')
     p.add_argument('--webex-locations', action='store_true', help='List Webex locations, then exit; no CUCM access')
     args=p.parse_args();load_env(args.env)
-    if args.apply:
-        p.error('--apply is not enabled in v0.7.1: validated payloads and routing-equivalence approval are required; no Webex changes made')
+    if args.apply and not (args.webex_check and args.resolve_members):
+        p.error('--apply requires --webex-check --resolve-members')
     if args.resolve_members and not args.webex_check:
         p.error('--resolve-members requires --webex-check')
     if args.export_location_mapping:
@@ -286,9 +288,19 @@ def main():
                 (out/'member-resolution.json').write_text(json.dumps(member_report, ensure_ascii=False, indent=2), encoding='utf-8')
                 print(f'Member resolution: {member_report["resolvedGroups"]} groups resolved; {member_report["reviewRequired"]} require review')
             report = preflight(chains, client, location_report, org_id)
+            if args.resolve_members:
+                lids = sorted({r['locationId'] for r in location_report['resolutions'] if r.get('locationId')})
+                existing = {lid:client.hunt_groups(lid,org_id) for lid in lids}
+                numbers = client.numbers(org_id)
+                create_plan = prepare(chains,location_report,member_report,plans,existing,numbers)
+                (out/'webex-create-plan.json').write_text(json.dumps(create_plan,ensure_ascii=False,indent=2),encoding='utf-8')
+                print('Create plan: '+str(sum(x['status']=='READY' for x in create_plan['objects']))+' ready, '+str(sum(x['status']=='BLOCKED' for x in create_plan['objects']))+' blocked')
+                if args.apply:
+                    result = apply_one(client,create_plan,args.confirm_create,out)
+                    print('CREATED DISABLED: '+result['name']+' ID='+result['id'])
             (out/'webex-preflight.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
             print(f'Location resolution: {location_report["resolved"]} resolved, {location_report["reviewRequired"]} need review')
-            print(f'Webex preflight: {len(report["checks"])} objects checked; NO CHANGES MADE')
+            print(f'Webex preflight: {len(report["checks"])} objects checked; '+('APPLY REQUESTED' if args.apply else 'NO CHANGES MADE'))
         except (WebexError, MappingError) as exc:
             raise SystemExit(f'Webex preflight failed: {exc}') from exc
     (out/'webex-chain-plan.json').write_text(json.dumps({
@@ -305,6 +317,6 @@ def main():
     with (out/'review.csv').open('w',newline='',encoding='utf-8-sig') as f:
         w=csv.writer(f);w.writerow(['Hunt Pilot','Target','Line Groups (ordered)','Members','Warnings','Status'])
         for plan in plans:w.writerow([plan['source']['huntPilot'],plan['proposal']['feature'],' > '.join(s['lineGroup'] for s in plan['source']['orderedStages']),';'.join(m['extension'] for m in plan['proposal']['members']),' | '.join(plan['warnings']),plan['status']])
-    print(f'{len(plans)} Hunt Pilots analyzed; chain proposals (DRY RUN) in {out.resolve()}')
+    print(f'{len(plans)} Hunt Pilots analyzed; reports in {out.resolve()}')
 
 if __name__=='__main__':main()

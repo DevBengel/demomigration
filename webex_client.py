@@ -95,6 +95,19 @@ class WebexClient:
         from urllib.parse import quote
         return self.get('/telephony/config/workspaces/' + quote(workspace_id, safe=''))[0]
 
+    def create_hunt_group(self, location_id, payload):
+        from urllib.parse import quote
+        path = '/telephony/config/locations/' + quote(location_id, safe='') + '/huntGroups'
+        response = self.session.post(BASE + path, json=payload, timeout=30)
+        if response.status_code >= 400:
+            raise WebexError(f'Webex POST HTTP {response.status_code}: {response.text[:400]}')
+        return response.json() if response.content else {}
+
+    def hunt_group_details(self, location_id, group_id):
+        from urllib.parse import quote
+        path = '/telephony/config/locations/' + quote(location_id, safe='') + '/huntGroups/' + quote(group_id, safe='')
+        return self.get(path)[0]
+
     def numbers(self, org_id=None):
         params = {'orgId': org_id} if org_id else None
         return self.list('/telephony/config/numbers', params=params, key='phoneNumbers')
