@@ -77,16 +77,23 @@ class WebexClient:
         return self.list('/telephony/config/huntGroups', params=params, key='huntGroups')
 
     def calling_people(self, location_id=None, org_id=None):
-        params = {}
-        if location_id: params['locationId'] = location_id
+        # Webex directory enumeration; callingData includes calling-specific fields.
+        params = {'callingData': 'true', 'max': 100}
         if org_id: params['orgId'] = org_id
-        return self.list('/telephony/config/people', params=params or None, key='people')
+        return self.list('/people', params=params, key='items')
 
     def calling_workspaces(self, location_id=None, org_id=None):
-        params = {}
-        if location_id: params['locationId'] = location_id
+        params = {'max': 100}
         if org_id: params['orgId'] = org_id
-        return self.list('/telephony/config/workspaces', params=params or None, key='workspaces')
+        return self.list('/workspaces', params=params, key='items')
+
+    def calling_person_details(self, person_id):
+        from urllib.parse import quote
+        return self.get('/telephony/config/people/' + quote(person_id, safe=''))[0]
+
+    def calling_workspace_details(self, workspace_id):
+        from urllib.parse import quote
+        return self.get('/telephony/config/workspaces/' + quote(workspace_id, safe=''))[0]
 
     def numbers(self, org_id=None):
         params = {'orgId': org_id} if org_id else None

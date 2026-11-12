@@ -3,9 +3,9 @@ from member_resolver import resolve_members
 
 class Client:
     def calling_people(self, location_id=None, org_id=None):
-        return [{'id':'p1','extension':'6016','displayName':'One'}, {'id':'p2','extension':'6017'}]
+        return [{'id':'p1','extension':'6016','displayName':'One','locationId':'loc'}, {'id':'p2','extension':'6017','locationId':'loc'}]
     def calling_workspaces(self, location_id=None, org_id=None):
-        return [{'id':'w1','extension':'6017'}]
+        return [{'id':'w1','extension':'6017','locationId':'loc'}]
 
 class Broken(Client):
     def calling_workspaces(self, location_id=None, org_id=None):

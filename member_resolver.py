@@ -11,21 +11,55 @@ def _normal(value):
     return value if value.isdecimal() else ''
 
 
+def _location(obj):
+    value = obj.get('locationId') or obj.get('callingLocationId') or obj.get('location')
+    return value.get('id') if isinstance(value, dict) else value
+
+
+def _extension(obj):
+    for key in ('extension', 'callingExtension'):
+        if _normal(obj.get(key)):
+            return _normal(obj[key])
+    numbers = obj.get('numbers') or obj.get('phoneNumbers') or []
+    if isinstance(numbers, dict):
+        numbers = numbers.get('numbers') or numbers.get('phoneNumbers') or []
+    for number in numbers:
+        if isinstance(number, dict) and _normal(number.get('extension')):
+            return _normal(number['extension'])
+    return ''
+
+
 def _collect(client, location_id, org_id):
-    inventory = []
-    failures = []
-    for kind, method in [('PEOPLE', client.calling_people), ('WORKSPACE', client.calling_workspaces)]:
+    inventory, failures = [], []
+    for kind, method, detail_name in [
+        ('PEOPLE', client.calling_people, 'calling_person_details'),
+        ('WORKSPACE', client.calling_workspaces, 'calling_workspace_details')]:
         try:
             entries = method(location_id=location_id, org_id=org_id)
         except Exception as exc:
             failures.append({'type': kind, 'error': str(exc)[:240]})
             continue
         for obj in entries:
-            ext = _normal(obj.get('extension'))
-            if ext and obj.get('id'):
+            if not obj.get('id'):
+                continue
+            loc = _location(obj)
+            ext = _extension(obj)
+            # Only fetch details when the list did not include an extension or location.
+            if (not ext or not loc) and hasattr(client, detail_name):
+                try:
+                    detail = getattr(client, detail_name)(obj['id'])
+                    ext = ext or _extension(detail)
+                    loc = loc or _location(detail)
+                except Exception as exc:
+                    failures.append({'type': kind, 'id': obj['id'], 'error': str(exc)[:240]})
+                    continue
+            # Never attribute a directory entry to the requested location by assumption.
+            if ext and loc == location_id:
                 inventory.append({'type': kind, 'id': obj['id'], 'extension': ext,
                                   'name': obj.get('displayName') or obj.get('name') or '',
-                                  'locationId': obj.get('locationId') or location_id})
+                                  'locationId': loc})
+            elif ext and not loc:
+                failures.append({'type': kind, 'id': obj['id'], 'error': 'LOCATION_UNKNOWN'})
     return inventory, failures
 
 

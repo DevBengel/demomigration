@@ -214,12 +214,15 @@ def main():
     p.add_argument('--exclude-prefix',default=None,help='Comma-separated excluded DN prefixes')
     p.add_argument('--list-only',action='store_true',help='Print matching Hunt Pilots; do not write plans or allocations')
     p.add_argument('--resolve-members', action='store_true', help='Resolve Calling people/workspaces by extension; requires --webex-check')
+    p.add_argument('--apply', action='store_true', help='Reserved for validated provisioning; fail closed in v0.7.1')
     p.add_argument('--webex-check', action='store_true', help='Connect to Webex, inspect location and target inventory (read-only)')
     p.add_argument('--location-mode', choices=['fixed','prefix','auto'], default=None, help='Override WEBEX_LOCATION_MODE')
     p.add_argument('--location-mapping', type=Path, default=None, help='JSON prefix -> Webex location ID')
     p.add_argument('--export-location-mapping', type=Path, help='Fetch Webex locations and generate editable JSON with names, IDs and prefix placeholders')
     p.add_argument('--webex-locations', action='store_true', help='List Webex locations, then exit; no CUCM access')
     args=p.parse_args();load_env(args.env)
+    if args.apply:
+        p.error('--apply is not enabled in v0.7.1: validated payloads and routing-equivalence approval are required; no Webex changes made')
     if args.resolve_members and not args.webex_check:
         p.error('--resolve-members requires --webex-check')
     if args.export_location_mapping:
