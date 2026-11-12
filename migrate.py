@@ -7,6 +7,7 @@ from chain_planner import build_chains
 from webex_client import WebexClient, WebexError, acquire_token, preflight
 from member_resolver import resolve_members
 from provisioner import prepare, apply_one
+from rna_mapping import load_calibration
 from location_mapper import resolve_locations, load_mapping, MappingError
 
 
@@ -215,6 +216,7 @@ def main():
     p.add_argument('--exclude-prefix',default=None,help='Comma-separated excluded DN prefixes')
     p.add_argument('--list-only',action='store_true',help='Print matching Hunt Pilots; do not write plans or allocations')
     p.add_argument('--resolve-members', action='store_true', help='Resolve Calling people/workspaces by extension; requires --webex-check')
+    p.add_argument('--rna-calibration', default=None, help='JSON with measuredSecondsPerRing, validatedByTestCalls and measurementNotes; advisory only')
     p.add_argument('--apply', action='store_true', help='Create ONE validated Hunt Group, disabled, with explicit confirmation')
     p.add_argument('--confirm-create', default='', help='Exact Hunt Group name to authorize creation')
     p.add_argument('--webex-check', action='store_true', help='Connect to Webex, inspect location and target inventory (read-only)')
@@ -292,7 +294,7 @@ def main():
                 lids = sorted({r['locationId'] for r in location_report['resolutions'] if r.get('locationId')})
                 existing = {lid:client.hunt_groups(lid,org_id) for lid in lids}
                 numbers = client.numbers(org_id)
-                create_plan = prepare(chains,location_report,member_report,plans,existing,numbers)
+                create_plan = prepare(chains,location_report,member_report,plans,existing,numbers,load_calibration(args.rna_calibration))
                 (out/'webex-create-plan.json').write_text(json.dumps(create_plan,ensure_ascii=False,indent=2),encoding='utf-8')
                 print('Create plan: '+str(sum(x['status']=='READY' for x in create_plan['objects']))+' ready, '+str(sum(x['status']=='BLOCKED' for x in create_plan['objects']))+' blocked')
                 if args.apply:

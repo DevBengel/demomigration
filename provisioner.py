@@ -2,6 +2,7 @@
 import json
 import re
 from pathlib import Path
+from rna_mapping import assess
 
 ALGORITHMS = {'Longest Idle Time': 'UNIFORM', 'Top Down': 'REGULAR',
               'Circular': 'CIRCULAR', 'Broadcast': 'SIMULTANEOUS'}
@@ -15,7 +16,7 @@ def _configured_forwarding(settings):
             return True
     return False
 
-def prepare(chains, location_report, member_report, plans, existing, numbers):
+def prepare(chains, location_report, member_report, plans, existing, numbers, calibration=None):
     locations = {r['sourceKey']: r for r in location_report['resolutions']}
     member_rows = {(r['sourceKey'], r['huntGroup']): r for r in member_report['reports']}
     sources = {json.dumps([p['source']['huntPilot'],p['source']['partition']],separators=(',',':')):p['source'] for p in plans}
@@ -37,8 +38,9 @@ def prepare(chains, location_report, member_report, plans, existing, numbers):
             if _configured_forwarding(chain.get('originalForwardSettings')):
                 reasons.append('CUCM_FORWARDING_NOT_MAPPED')
             options = group.get('huntOptions') or {}
-            if options.get('rnaReversionTimeOut') not in (None, '', 0, '0'):
-                reasons.append('CUCM_RNA_SECONDS_CANNOT_MAP_TO_WEBEX_RINGS_AUTOMATICALLY')
+            timing = assess(options.get('rnaReversionTimeOut'), calibration)
+            if timing['status'] != 'NOT_CONFIGURED':
+                reasons.append('CUCM_RNA_WEBEX_MAPPING_NOT_API_VALIDATED')
             for key in ('huntAlgorithmNoAnswer','huntAlgorithmBusy','huntAlgorithmNotAvailable'):
                 if options.get(key): reasons.append('CUCM_HUNT_OPTION_REQUIRES_SEMANTIC_REVIEW')
             policy = ALGORITHMS.get(group.get('distributionAlgorithm'))
@@ -57,7 +59,7 @@ def prepare(chains, location_report, member_report, plans, existing, numbers):
                        'agents':[{'id':m['id']} for m in candidates]} if policy and candidates else None
             result.append({'sourceKey':chain['sourceKey'],'name':group['name'],'locationId':lid,
                            'status':'BLOCKED' if reasons else 'READY', 'reasons':sorted(set(reasons)),
-                           'payload':payload})
+                           'payload':payload,'rnaTiming':timing})
     return {'schemaVersion':1,'mode':'CREATE_DISABLED_ONLY','objects':result}
 
 def apply_one(client, plan, confirmation, output):
