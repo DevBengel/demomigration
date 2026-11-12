@@ -29,8 +29,18 @@ def _extension(obj):
     return ''
 
 
+def _stale_directory_entry(exc):
+    """A directory identity removed from Calling can legitimately return 404.
+
+    Do not treat arbitrary 404s (wrong routes, missing permissions) as stale.
+    """
+    message = str(exc)
+    return ('HTTP 404' in message and
+            ('User not found' in message or 'Workspace not found' in message))
+
+
 def _collect(client, location_id, org_id):
-    inventory, failures = [], []
+    inventory, failures, warnings = [], [], []
     for kind, method, detail_name in [
         ('PEOPLE', client.calling_people, 'calling_person_details'),
         ('WORKSPACE', client.calling_workspaces, 'calling_workspace_details')]:
@@ -51,7 +61,13 @@ def _collect(client, location_id, org_id):
                     ext = ext or _extension(detail)
                     loc = loc or _location(detail)
                 except Exception as exc:
-                    failures.append({'type': kind, 'id': obj['id'], 'error': str(exc)[:240]})
+                    entry = {'type': kind, 'id': obj['id'], 'error': str(exc)[:240]}
+                    if _stale_directory_entry(exc):
+                        # An identity absent from the Calling backend cannot be
+                        # provisioned as a Calling Hunt Group member.
+                        warnings.append({**entry, 'reason': 'STALE_DIRECTORY_IDENTITY'})
+                    else:
+                        failures.append(entry)
                     continue
             # Never attribute a directory entry to the requested location by assumption.
             if ext and loc == location_id:
@@ -60,7 +76,7 @@ def _collect(client, location_id, org_id):
                                   'locationId': loc})
             elif ext and not loc:
                 failures.append({'type': kind, 'id': obj['id'], 'error': 'LOCATION_UNKNOWN'})
-    return inventory, failures
+    return inventory, failures, warnings
 
 
 def resolve_members(chains, client, location_report, org_id=None):
@@ -71,7 +87,7 @@ def resolve_members(chains, client, location_report, org_id=None):
         lid = locations.get(chain['sourceKey'])
         if lid and lid not in inventory_by_location:
             inventory_by_location[lid] = _collect(client, lid, org_id)
-        inventory, errors = inventory_by_location.get(lid, ([], []))
+        inventory, errors, warnings = inventory_by_location.get(lid, ([], [], []))
         for group in chain['huntGroups']:
             members = []
             for member in group.get('members', []):
@@ -90,7 +106,7 @@ def resolve_members(chains, client, location_report, org_id=None):
             group['resolvedMembers'] = [m['candidates'][0] for m in members] if resolved else []
             reports.append({'sourceKey': chain['sourceKey'], 'huntGroup': group['name'],
                             'locationId': lid, 'status': 'RESOLVED' if resolved else 'REVIEW_REQUIRED',
-                            'inventoryErrors': errors, 'members': members})
-    return {'schemaVersion': 1, 'mode': 'READ_ONLY', 'reports': reports,
+                            'inventoryErrors': errors, 'inventoryWarnings': warnings, 'members': members})
+    return {'schemaVersion': 2, 'mode': 'READ_ONLY', 'reports': reports,
             'resolvedGroups': sum(r['status']=='RESOLVED' for r in reports),
             'reviewRequired': sum(r['status']!='RESOLVED' for r in reports)}

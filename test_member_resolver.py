@@ -47,3 +47,29 @@ class DirectoryRequestTests(unittest.TestCase):
         c.calling_workspaces(location_id='loc',org_id='bad-uuid')
         self.assertEqual(c.calls[0],('/people',{'callingData':'true','max':100},'items'))
         self.assertEqual(c.calls[1],('/workspaces',None,'items'))
+
+class StaleCallingIdentityTests(unittest.TestCase):
+    class Stale(Client):
+        def calling_people(self, **kwargs):
+            return super().calling_people(**kwargs) + [{'id': 'stale', 'displayName': 'Deleted'}]
+        def calling_person_details(self, person_id):
+            raise RuntimeError('Webex API HTTP 404: {"message":"User not found."}')
+
+    class Uncertain(Stale):
+        def calling_person_details(self, person_id):
+            raise RuntimeError('Webex API HTTP 403: scope missing')
+
+    def test_stale_calling_user_does_not_block_verified_match(self):
+        result, _ = Tests().run_case(self.Stale(), ['6016'])
+        self.assertEqual(result['resolvedGroups'], 1)
+        self.assertEqual(result['reports'][0]['inventoryErrors'], [])
+        self.assertEqual(result['reports'][0]['inventoryWarnings'][0]['reason'], 'STALE_DIRECTORY_IDENTITY')
+
+    def test_other_api_failure_still_blocks(self):
+        result, _ = Tests().run_case(self.Uncertain(), ['6016'])
+        self.assertEqual(result['resolvedGroups'], 0)
+        self.assertEqual(result['reports'][0]['members'][0]['status'], 'INVENTORY_INCOMPLETE')
+
+    def test_missing_stays_missing_with_stale_user(self):
+        result, _ = Tests().run_case(self.Stale(), ['9999'])
+        self.assertEqual(result['reports'][0]['members'][0]['status'], 'MISSING')
